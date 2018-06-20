@@ -2,19 +2,24 @@ dist: trusty
 sudo: required
 group: beta
 language: node_js
+service_name: travis-pro
+repo_token: rEGNkfWmzfHY1389UpMY4QiC8aEhACsNw
 node_js:
   - "9"
 cache:
   yarn: true
 env:
   -
-  # - SOLIDITY_COVERAGE=true FIXME: disabled because of versions conflicts
+  # - SOLIDITY_COVERAGE=true FIXME: not working
 matrix:
   fast_finish: true
   # allow_failures:
   #   - env: SOLIDITY_COVERAGE=true
-before_script:
- - chmod +x ./scripts/ci.sh
+# before_script:
+#  - chmod +x ./scripts/ci.sh
+# script:
+#   - yarn lint
+#   - ./scripts/ci.sh
 script:
   - yarn lint
-  - ./scripts/ci.sh
+  - npm test

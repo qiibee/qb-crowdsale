@@ -60,11 +60,32 @@ module.exports = {
     fromAccount: knownAccountGen
   }),
 
+  setTokenCommandGen: jsc.record({
+    type: jsc.constant('setToken'),
+    newToken: accountGen,
+    fromAccount: knownAccountGen
+  }),
+
+  claimVaultFundsCommandGen: jsc.record({
+    type: jsc.constant('claimVaultFunds'),
+    fromAccount: knownAccountGen
+  }),
+
+  refundAllCommandGen: jsc.record({
+    type: jsc.constant('refundAll'),
+    fromAccount: knownAccountGen
+  }),
+
   validatePurchaseCommandGen: jsc.record({
     type: jsc.constant('validatePurchase'),
     account: accountGen,
     beneficiary: accountGen,
-    acceptance: jsc.bool,
+  }),
+
+  rejectPurchaseCommandGen: jsc.record({
+    type: jsc.constant('rejectPurchase'),
+    account: accountGen,
+    beneficiary: accountGen,
   }),
 
   burnTokensCommandGen: jsc.record({
@@ -87,7 +108,8 @@ module.exports = {
 
   finalizeCrowdsaleCommandGen: jsc.record({
     type: jsc.constant('finalizeCrowdsale'),
-    fromAccount: accountGen
+    fromAccount: accountGen,
+    skipRefunds: jsc.bool,
   }),
 
   fundCrowdsaleToCapCommandGen: jsc.record({

@@ -15,7 +15,7 @@ require('chai').
   should();
 
 function assertExpectedException(e) {
-  let isKnownException = help.isInvalidOpcodeEx(e);
+  let isKnownException = help.isInvalidOpcodeEx(e) || help.isRevert(e);
   if (!isKnownException) {
     throw(e);
   }

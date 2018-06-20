@@ -91,12 +91,17 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      */
     event PartialRefund(address beneficiary, uint256 amount);
 
-    /* //TODO FIX TEXT
-     * @dev event for contribution refunded
+    /*
+     * @dev event for contribution whitelist
      * @param beneficiary contributor address
-     * @param beneficiary amoount invested
      */
-    event Refunded(address beneficiary, uint256 amount);
+    event Whitelisted(address beneficiary);
+
+    /*
+     * @dev event for contribution blacklist
+     * @param beneficiary contributor address
+     */
+    event Blacklisted(address beneficiary);
 
     /*
      * @dev Constructor. Creates the token in a paused state
@@ -127,11 +132,10 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
     {
         require(_minContrib > 0);
         require(_minContrib < cap);
-        require(_maxCumulativeContrib > 0);
         require(_minContrib <= _maxCumulativeContrib);
         require(_maxGasPrice > 0);
 
-        bonusEndtime = _openingTime + 7 days;
+        bonusEndtime = _openingTime.add(7 days);
         minContrib = _minContrib;
         maxCumulativeContrib = _maxCumulativeContrib;
         maxGasPrice = _maxGasPrice;
@@ -140,46 +144,19 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
     }
 
     /**
-     * @dev Throws if called by any account other than the owner.
+     * @dev Throws if cap has been reached.
      */
     modifier capNotReached() {
       require(weiRaised < cap);
       _;
     }
 
-    function _preValidatePurchase(address _beneficiary, uint256 _weiAmount) internal {
-        require(_beneficiary != address(0));
-        require(_weiAmount != 0);
-        require(block.timestamp >= openingTime && block.timestamp <= closingTime);
-    }
-
-    /*
-     * @dev Whenever buyTokens function is called there are 3 use cases that can take place:
-     * 1). if contributor has already passed KYC (this means that accepted[beneficiary] is true),
-     * a normal purchase is done (funds go to qiibee wallet and tokens are minted (see _mintTokens
-     * function)
-     * 2). if contributor has been REJECTED from KYC (this means that rejected[beneficiary] is true),
-     * funds are immediately refunded to the user and NO minting is performed.
-     * 3). if contributor has never gone through the KYC process (this means that both
-     * accepted[beneficiary] and rejected[beneficiary] are false) the funds are deposited in a vault
-     * until the contract knows whether the contributor has passed the KYC or not.
-     * @param beneficiary address where tokens will be sent to in case of acceptance
+    /**
+     * @dev Throws if crowdsale has started.
      */
-    function buyTokens(address beneficiary) public payable whenNotPaused capNotReached {
-        _preValidatePurchase(beneficiary, msg.value);
-        _checkLimits(beneficiary, msg.value);
-
-        if (accepted[beneficiary]) { // contributor has been accepted in the KYC process
-            _mintTokens(beneficiary, msg.value);
-        } else {
-            if (rejected[beneficiary]) { // contributor has been rejected in the KYC process
-                beneficiary.transfer(msg.value); // refund money to contributor
-                Refunded(beneficiary, msg.value);
-            } else { // contributor has not gone through the KYC process yet
-                bonus[beneficiary] = _checkBonus(beneficiary);
-                vault.deposit.value(msg.value)(beneficiary);
-            }
-        }
+    modifier beforeOpen() {
+      require(block.timestamp < openingTime);
+      _;
     }
 
     /****
@@ -194,18 +171,59 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * SOLUTION: TODO.
      ****/
 
-     /****
-     * TODO: If last contribution goes over the cap, allow it but refund the remaining amount.
-     ****/
+    /*
+     * @dev Whenever buyTokens function is called there are 3 use cases that can take place:
+     * 1). if contributor has already passed KYC (this means that accepted[beneficiary] is true),
+     * a normal purchase is done (funds go to qiibee wallet and tokens are minted (see _mintTokens
+     * function)
+     * 2). if contributor has been REJECTED from KYC (this means that rejected[beneficiary] is true),
+     * funds are immediately refunded to the user and NO minting is performed.
+     * 3). if contributor has never gone through the KYC process (this means that both
+     * accepted[beneficiary] and rejected[beneficiary] are false) the funds are deposited in a vault
+     * until the contract knows whether the contributor has passed the KYC or not.
+     * @param beneficiary address where tokens will be sent to in case of acceptance
+     */
+    function buyTokens(address beneficiary) public payable whenNotPaused capNotReached onlyWhileOpen {
+        _preValidatePurchase(beneficiary, msg.value);
+
+        if (accepted[beneficiary]) { // contributor has been accepted in the KYC process
+            _mintTokens(beneficiary, msg.value);
+        } else {
+            if (rejected[beneficiary]) { // contributor has been rejected in the KYC process
+                revert();
+                // beneficiary.transfer(msg.value); // refund money to contributor
+                // Refunded(beneficiary, msg.value);
+            } else { // contributor has not gone through the KYC process yet
+                bonus[beneficiary] = _checkBonus();
+                vault.deposit.value(msg.value)(beneficiary);
+            }
+        }
+    }
 
     /*
-     * @dev this function is trigger by the owner to validate or reject an contributor's purchase. If
-     * acceptance is true there are 2 use cases that can take place:
+     * @dev this function is triggered by the owner to validate a contributor's purchase. There are 2 use cases 
+     * that can take place:
      * 1). if contributor has previously tried contributing (so he has his funds in the vault), we add
      * him/her to the accepted array and call _mintTokens() function.
      * 2). if contributor has never tried contributing yet (so he has no funds in the vault), we just add
      * him/her to the accepted array.
-     * If acceptance is false, there are again 2 use cases:
+     * @param beneficiary address where tokens are sent to
+     * @param acceptance whether the user has passed KYC or not
+     */
+    function validatePurchase(address beneficiary) onlyOwner public whenNotPaused {
+        require(beneficiary != address(0));
+        uint256 deposited = vault.deposited(beneficiary); // wei deposited by contributor
+        accepted[beneficiary] = true; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
+        rejected[beneficiary] = false; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
+        if (deposited > 0) {
+          _mintTokens(beneficiary, deposited);
+        }
+        Whitelisted(beneficiary);
+    }
+
+    /*
+     * @dev this function is triggered by the owner to reject a contributor's purchase. There are 2 use cases 
+     * that can take place:
      * 1). if contributor has previously tried contributing (so he has his funds in the vault), we add
      * him/her to the rejected array and refund him/her.
      * 2). if contributor has never tried contributing yet (so he has no funds in the vault), we just add
@@ -213,96 +231,15 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * @param beneficiary address where tokens are sent to
      * @param acceptance whether the user has passed KYC or not
      */
-    function validatePurchase(address beneficiary, bool acceptance) onlyOwner public whenNotPaused {
+    function rejectPurchase(address beneficiary) onlyOwner public whenNotPaused {
         require(beneficiary != address(0));
-        uint256 deposited = vault.deposited(beneficiary); // wei deposited by contributor TODO: cant make it work
-        if (acceptance) {
-            accepted[beneficiary] = true; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
-            rejected[beneficiary] = false; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
-            if (deposited > 0) {
-              _mintTokens(beneficiary, deposited);
-            }
-        } else {
-            rejected[beneficiary] = true; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
-            accepted[beneficiary] = false;
-            if (deposited > 0) {
-              vault.refund(beneficiary);
-            }
-        }
-    }
-
-    /*
-     * @dev checks whether corresponds to receive a bonus or not.
-     * @param beneficiary address where tokens will be sent to in case of acceptance
-     */
-    function _checkBonus(address beneficiary) internal returns (bool) {
-        if (now <= bonusEndtime) { // applies for the bonus
-            return  true;
-        } else {
-            return false;
-        }
-    }
-
-    /*
-     * @dev If user has passed KYC, release funds and mint QBX. Otherwise, send back money.
-     * @param beneficiary address where tokens are sent to
-     * @param acceptance whether the user has passed KYC or not
-     */
-    function _mintTokens(address beneficiary, uint256 weiAmount) public {
-        _checkLimits(beneficiary, weiAmount);
-
         uint256 deposited = vault.deposited(beneficiary); // wei deposited by contributor
-        uint256 newBalance = weiRaised.add(weiAmount);
-        uint256 overflow;
-
-        if (newBalance > cap) {
-
-            overflow = newBalance.sub(cap);
-            uint256 available = weiAmount.sub(overflow);
-            assert(available > 0);
-            weiAmount = available;
+        rejected[beneficiary] = true; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
+        accepted[beneficiary] = false;
+        if (deposited > 0) {
+          vault.refund(beneficiary);
         }
-
-        uint256 tokens = weiAmount.mul(rate);
-
-        if (_checkBonus(beneficiary) || bonus[beneficiary]) {
-            tokens = tokens.mul(105).div(100); // adds 5% on top
-            bonus[beneficiary] = false; // reset bonus
-        }
-
-        assert(QiibeeToken(token).mint(beneficiary, tokens));
-
-        weiRaised = weiRaised.add(weiAmount);
-        tokensSold = tokensSold.add(tokens);
-
-        if (deposited > 0) { // if contributor has his funds in the vault, release them to qiibee
-            vault.release(beneficiary, overflow);
-        } else {
-            wallet.transfer(weiAmount); // forward funds to qiibee wallet
-            Released(beneficiary, weiAmount);
-        }
-        TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
-    }
-
-    /*
-     * Checks if the contribution made is within the allowed limits
-     */
-    function _checkLimits(address beneficiary, uint256 weiAmount) internal {
-        uint256 newBalance = balances[beneficiary].add(weiAmount);
-        require(newBalance <= maxCumulativeContrib && weiAmount >= minContrib);
-        require(tx.gasprice <= maxGasPrice);
-    }
-
-    /*
-     * @dev Overrides Crowdsale#finalization() and is in charge of minting 49% percent of
-     * the tokens to the qiibee foundation wallet
-     */
-    function finalization() internal {
-        uint256 totalSupply = QiibeeToken(token).totalSupply(); // 51%
-        uint256 foundationSupply = totalSupply.mul(49).div(51); // 49%
-        QiibeeToken(token).mint(wallet, foundationSupply);
-        vault.refundAll(); //TODO: decide if we want to refund here or we do it later
-        super.finalization();
+        Blacklisted(beneficiary);
     }
 
     /**
@@ -327,7 +264,8 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
     /**
       @dev changes the token owner
     */
-    function setToken(address tokenAddress) onlyOwner {
+    function setToken(address tokenAddress) onlyOwner beforeOpen public {
+      require(tokenAddress != address(0));
       token = QiibeeToken(tokenAddress);
     }
 
@@ -339,6 +277,120 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
         require(_wallet != address(0));
         wallet = _wallet;
         WalletChange(_wallet);
+    }
+
+    /*
+     * @dev Contributors can claim their contribution after crowdsale has been finalized.
+     * This is a safe method in case refundAll() didn't work so each contributor can 
+     * still claim their funds stored in the vault. 
+     */
+    function claimVaultFunds() whenNotPaused public {
+        require(isFinalized);
+        vault.refund(msg.sender);
+    }
+
+    /*
+     * @dev Allows owner to refund all the contributors that have a reamining balance
+     * on the vault. This call is only allowed after crowdsale is finished 
+     */
+    function refundAll() whenNotPaused onlyOwner public {
+        require(isFinalized);
+        vault.refundAll();
+    }
+
+    /*
+     * @dev Pre validates a purchase. Note that the sender must be the beneficiary, 
+     * this means that nobody can purchase on behalf of another one.
+     * @param _beneficiary beneficiary
+     * @param _weiAmount amount in wei
+     */
+    function _preValidatePurchase(address _beneficiary, uint256 _weiAmount) internal {
+        require(_beneficiary != address(0));
+        require(msg.sender == _beneficiary);
+        require(_weiAmount != 0);
+        uint256 deposited = vault.deposited(_beneficiary); // wei deposited by contributor
+        uint256 newBalance = msg.value.add(deposited);
+        _checkLimits(_beneficiary, newBalance);
+    }
+
+    /*
+     * @dev checks whether corresponds to receive a bonus or not.
+     */
+    function _checkBonus() internal returns (bool) {
+        return now <= bonusEndtime;
+    }
+
+    /*
+     * @dev If user has passed KYC, release funds and mint QBX. Otherwise, send back money.
+     * @param beneficiary address where tokens are sent to
+     * @param acceptance whether the user has passed KYC or not
+     */
+    function _mintTokens(address beneficiary, uint256 weiAmount) internal {
+        _checkLimits(beneficiary, weiAmount);
+
+        uint256 overflow = _computeOverflow(weiAmount);
+        weiAmount = weiAmount.sub(overflow);
+        assert(weiAmount > 0);
+
+        uint256 tokens = _computeTokens(beneficiary, weiAmount);
+
+        assert(QiibeeToken(token).mint(beneficiary, tokens));
+
+        balances[beneficiary] = balances[beneficiary].add(weiAmount);
+        weiRaised = weiRaised.add(weiAmount);
+        tokensSold = tokensSold.add(tokens);
+        _processDeposit(beneficiary, weiAmount, overflow);
+
+        TokenPurchase(msg.sender, beneficiary, weiAmount, tokens);
+    }
+
+    function _computeOverflow(uint256 weiAmount) internal returns (uint256) {
+        uint256 newBalance = weiRaised.add(weiAmount);
+        uint256 overflow;
+        if (newBalance > cap) {
+            overflow = newBalance.sub(cap);
+        }
+        return overflow;
+    }
+
+    function _computeTokens(address beneficiary, uint256 weiAmount) internal returns (uint256) {
+        uint256 tokens = weiAmount.mul(rate);
+        if (_checkBonus() || bonus[beneficiary]) {
+            tokens = tokens.mul(105).div(100); // adds 5% on top
+            bonus[beneficiary] = false; // reset bonus
+        }
+        return tokens;
+    }
+
+    function _processDeposit(address beneficiary, uint256 weiAmount, uint256 overflow) internal returns (uint256) {
+        uint256 deposited = vault.deposited(beneficiary); // wei deposited by contributor
+        if (deposited > 0) { // if contributor has his funds in the vault, release them to qiibee
+            vault.release(beneficiary, overflow);
+        } else {
+            wallet.transfer(weiAmount); // forward funds to qiibee wallet
+            Released(beneficiary, weiAmount);
+        }
+    }
+
+    /*
+     * Checks if the contribution made is within the allowed limits
+     */
+    function _checkLimits(address beneficiary, uint256 weiAmount) internal {
+        uint256 newBalance = balances[beneficiary].add(weiAmount);
+        require(newBalance <= maxCumulativeContrib && weiAmount >= minContrib);
+        require(tx.gasprice <= maxGasPrice);
+    }
+
+    /*
+     * @dev Overrides Crowdsale#finalization() and is in charge of minting 49% percent of
+     * the tokens to the qiibee foundation wallet
+     */
+    function finalization() internal {
+        uint256 totalSupply = QiibeeToken(token).totalSupply(); // 51%
+        uint256 foundationSupply = totalSupply.mul(49).div(51); // 49%
+        QiibeeToken(token).mint(wallet, foundationSupply);
+        assert(QiibeeToken(token).totalSupply() == totalSupply.add(foundationSupply));
+        super.finalization();
     }
 
 }

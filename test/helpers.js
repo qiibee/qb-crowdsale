@@ -82,6 +82,10 @@ module.exports = {
     return e.message.search('invalid opcode') >= 0;
   },
 
+  isRevert: function(e) {
+    return e.message.search('revert') >= 0;
+  },
+
   hasWrongArguments: function(e) {
     return e.message.search('contract constructor expected') >= 0;
   },
@@ -165,5 +169,7 @@ module.exports = {
     }
     return rate;
   },
+
+  EVMThrow: 'invalid opcode',
 
 };

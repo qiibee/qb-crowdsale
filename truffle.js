@@ -16,7 +16,7 @@ module.exports = {
       host: 'localhost',
       port: 8545,
       network_id: '*',
-      gasPrice: 22000000000
+      gasPrice: 22000000000,
     },
     // ropsten: {
     //   network_id: 3,    // Use the ID provided at craddeation time
@@ -26,7 +26,7 @@ module.exports = {
     // },
     coverage: {
       host: "localhost",
-      port: 8555,
+      port: 8545,
       network_id: "*",
       gas: 0xfffffffffff,
       gasPrice: 0x01

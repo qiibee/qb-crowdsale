@@ -65,13 +65,13 @@ else
 fi
 
 if [ "$SOLIDITY_COVERAGE" = true ]; then
-  GEN_TESTS_QTY=0 GAS_PRICE=1 node_modules/.bin/solidity-coverage --verbose
-  if [ "$CONTINUOUS_INTEGRATION" = true ]; then
+  GEN_TESTS_QTY=0 GAS_PRICE=1 node_modules/.bin/solidity-coverage
+  # if [ "$CONTINUOUS_INTEGRATION" = true ]; then
     cat coverage/lcov.info | node_modules/.bin/coveralls
-  fi
+  # fi
 else
   rm -f .node-xmlhttprequest-sync-[0-9]*
   rm -f .node-xmlhttprequest-content-[0-9]*
-  node_modules/.bin/truffle compile
-  node_modules/.bin/truffle test test/QiibeeCrowdsale.js test/QiibeeCrowdsaleGenTest.js --v
+  # node_modules/.bin/truffle compile
+  node_modules/.bin/truffle test --v
 fi

@@ -1,5 +1,6 @@
 let Vault = artifacts.require('./Vault.sol');
 let BigNumber = web3.BigNumber;
+BigNumber.config({ DECIMAL_PLACES: 0 });
 
 require('chai').use(require('chai-bignumber')(BigNumber)).should();
 
@@ -16,7 +17,7 @@ const isZeroAddress = (addr) => addr === help.zeroAddress;
 let isCouldntUnlockAccount = (e) => e.message.search('could not unlock signer account') >= 0;
 
 function assertExpectedException(e, shouldThrow, addressZero, state, command) {
-  let isKnownException = help.isInvalidOpcodeEx(e) ||
+  let isKnownException = help.isInvalidOpcodeEx(e) || help.isRevert(e) ||
     (isCouldntUnlockAccount(e) && addressZero);
   if (!shouldThrow || !isKnownException) {
     throw(new ExceptionRunningCommand(e, state, command));
@@ -83,13 +84,105 @@ async function runSetWalletCommand(command, state) {
     command.fromAccount != state.owner;
 
   try {
+    let prevWallet = await state.crowdsaleContract.wallet();
     await state.crowdsaleContract.setWallet(newAccount, {from: from});
     assert.equal(false, shouldThrow, 'setWallet should have thrown but it didn\'t');
     help.debug(colors.green('SUCCESS setting wallet fromAccount:', from, 'newAccount:', newAccount));
+
+    assert.notEqual(prevWallet, await state.crowdsaleContract.wallet());
+    assert.equal(newAccount, await state.crowdsaleContract.wallet());
     state.wallet = command.newAccount;
   } catch(e) {
     help.debug(colors.yellow('FAILED setting wallet fromAccount:', from, 'newAccount:', newAccount));
     assertExpectedException(e, shouldThrow, hasZeroAddress, state, command);
+  }
+  return state;
+}
+
+async function runSetTokenCommand(command, state) {
+  let crowdsale = state.crowdsaleData,
+    from = gen.getAccount(command.fromAccount),
+    newToken = gen.getAccount(command.newToken),
+    hasZeroAddress = _.some([from, newToken], isZeroAddress),
+    { startTime, endTime} = crowdsale,
+    nextTime = latestTime();
+
+  let inTGE = nextTime >= startTime && nextTime <= endTime;
+  let shouldThrow = hasZeroAddress ||
+    command.fromAccount != state.owner ||
+    inTGE;
+
+  try {
+    let prevToken = await state.crowdsaleContract.token();
+    await state.crowdsaleContract.setToken(newToken, {from: from});
+    assert.equal(false, shouldThrow, 'setToken should have thrown but it didn\'t');
+    assert.notEqual(prevToken, await state.crowdsaleContract.token());
+    assert.equal(newToken, await state.crowdsaleContract.token());
+    help.debug(colors.green('SUCCESS setting new token fromAccount:', from, 'newToken:', newToken));
+    state.token = command.newToken;
+  } catch(e) {
+    help.debug(colors.yellow('FAILED setting new token fromAccount:', from, 'newToken:', newToken));
+    assertExpectedException(e, shouldThrow, hasZeroAddress, state, command);
+  }
+  return state;
+}
+
+async function runClaimVaultFundsCommand(command, state) {
+  let from = gen.getAccount(command.fromAccount),
+    hasZeroAddress = _.some([from], isZeroAddress);
+
+  let shouldThrow = hasZeroAddress ||
+    state.crowdsalePaused ||
+    !state.crowdsaleFinalized;
+
+  try {
+    let vault = Vault.at(await state.crowdsaleContract.vault()),
+      prevBalance = web3.eth.getBalance(from),
+      deposited = await vault.deposited(from);
+
+    await state.crowdsaleContract.claimVaultFunds({from: from});
+    assert.equal(false, shouldThrow, 'claimVaultFunds should have thrown but it didn\'t');
+    
+    new BigNumber(0).should.be.bignumber.equal(await vault.deposited(from));
+    if (deposited > 0)
+      new BigNumber(prevBalance).should.be.bignumber.lte(new BigNumber(web3.eth.getBalance(from)));
+    state.vault[command.fromAccount] = 0;
+    state.balances[command.fromAccount] = getBalance(state, command.beneficiary).plus(deposited);
+    help.debug(colors.green('SUCCESS claiming vaults fromAccount:', from));
+  } catch(e) {
+    help.debug(colors.yellow('FAILED claiming vaults fromAccount:', from));
+    assertExpectedException(e, shouldThrow, hasZeroAddress, state, command);
+    state = trackGasFromLastBlock(state, command.fromAccount);
+  }
+  return state;
+}
+
+async function runRefundAllCommand(command, state) {
+  let  from = gen.getAccount(command.fromAccount),
+    hasZeroAddress = _.some([from], isZeroAddress);
+
+  let shouldThrow = hasZeroAddress ||
+    state.crowdsalePaused ||
+    !state.crowdsaleFinalized ||
+    command.fromAccount != state.owner;
+
+  try {
+    await state.crowdsaleContract.refundAll({from: from});
+    assert.equal(false, shouldThrow, 'refundAll should have thrown but it didn\'t');
+    let vault = Vault.at(await state.crowdsaleContract.vault());
+
+    for (var i = 0; i < state.vault.length; i++) {
+      state.vault[i] = 0;
+      let deposited = await vault.deposited(gen.getAccount(i));
+      new BigNumber(state.vault[i]).should.be.bignumber.equal(deposited);
+      state.balances[command.fromAccount] =  getBalance(state, command.beneficiary).plus(deposited);
+    }
+
+    help.debug(colors.green('SUCCESS refunding all'));
+  } catch(e) {
+    help.debug(colors.yellow('FAILED refunding all'));
+    assertExpectedException(e, shouldThrow, hasZeroAddress, state, command);
+    state = trackGasFromLastBlock(state, command.fromAccount);
   }
   return state;
 }
@@ -103,7 +196,8 @@ async function runBuyTokensCommand(command, state) {
     beneficiaryAccount = gen.getAccount(command.beneficiary),
     rate = state.crowdsaleData.rate,
     hasZeroAddress = _.some([account, beneficiaryAccount], isZeroAddress),
-    newBalance = getBalance(state, command.beneficiary).plus(weiCost);
+    deposited = state.vault[command.beneficiary] || 0,
+    newBalance = getBalance(state, command.beneficiary).plus(deposited).plus(weiCost);
 
   let inTGE = nextTime >= startTime && nextTime <= endTime,
     capReached = state.weiRaised.eq(crowdsale.cap),
@@ -113,6 +207,7 @@ async function runBuyTokensCommand(command, state) {
     minNotReached = new BigNumber(help.toAtto(command.eth)).lt(state.crowdsaleData.minInvest);
 
   let shouldThrow = (!inTGE) ||
+    command.beneficiary !== command.account ||
     state.crowdsalePaused ||
     crowdsale.rate == 0 ||
     crowdsale.cap == 0 ||
@@ -126,10 +221,10 @@ async function runBuyTokensCommand(command, state) {
     maxExceeded ||
     minNotReached ||
     gasExceeded ||
-    capReached;
+    capReached ||
+    state.passedKYC[command.beneficiary] === false;
 
   let bonusTime = nextTime <= startTime + duration.days(7);
-
   try {
     const tx = await state.crowdsaleContract.buyTokens(beneficiaryAccount, {value: weiCost, from: account, gasPrice: (command.gasPrice ? command.gasPrice : state.crowdsaleData.maxGasPrice)});
     assert.equal(false, shouldThrow, 'buyTokens should have thrown but it didn\'t');
@@ -189,7 +284,6 @@ async function runValidatePurchaseCommand(command, state) {
     nextTime = latestTime(),
     account = gen.getAccount(command.account),
     beneficiaryAccount = gen.getAccount(command.beneficiary),
-    acceptance = command.acceptance,
     rate = state.crowdsaleData.rate,
     hasZeroAddress = _.some([account, beneficiaryAccount], isZeroAddress),
     newBalance = getBalance(state, command.beneficiary).plus(deposited);
@@ -214,7 +308,6 @@ async function runValidatePurchaseCommand(command, state) {
     maxExceeded ||
     minNotReached ||
     gasExceeded ||
-    acceptance == null ||
     command.account != state.owner;
 
   let balanceOverflowed = state.weiRaised.plus(deposited);
@@ -225,41 +318,96 @@ async function runValidatePurchaseCommand(command, state) {
   }
 
   try {
-    let tx = await state.crowdsaleContract.validatePurchase(beneficiaryAccount, acceptance, {from: account, gasPrice: (command.gasPrice ? command.gasPrice : state.crowdsaleData.maxGasPrice)});
+    let tx = await state.crowdsaleContract.validatePurchase(beneficiaryAccount, {from: account, gasPrice: (command.gasPrice ? command.gasPrice : state.crowdsaleData.maxGasPrice)});
     assert.equal(false, shouldThrow, 'validatePurchase should have thrown but it didn\'t');
-
     let tokens = new BigNumber(0);
 
-    if (acceptance) { //investor has already passed the KYC
-      let tokens = new BigNumber(web3.fromWei(deposited, 'ether')).mul(rate);
-      state.passedKYC[command.beneficiary] = true;
-      if (state.vault[command.beneficiary] > 0) { //if investor has money in the vault, refund
-        if (state.bonus[command.beneficiary]) {
-          tokens = tokens.mul(105).div(100);
-          state.bonus[command.beneficiary] = false;
-        }
-        state.purchases = _.concat(state.purchases,
-          {tokens: tokens, rate: rate, wei: deposited, beneficiary: command.beneficiary, account: command.account}
-        );
-        state.balances[command.beneficiary] = getBalance(state, command.beneficiary).sub(deposited);
-        state.tokenBalances[command.beneficiary] = getTokenBalance(state, command.beneficiary).plus(tokens);
-        state.weiRaised = state.weiRaised.plus(deposited);
-        state.tokensSold = state.tokensSold.plus(new BigNumber(help.toAtto(tokens)));
-        state.crowdsaleSupply = state.crowdsaleSupply.plus(new BigNumber(help.toAtto(tokens)));
-        state.vault[command.beneficiary] = 0;
+    tokens = new BigNumber(web3.fromWei(deposited, 'ether')).mul(rate);
+    state.passedKYC[command.beneficiary] = true;
+    if (state.vault[command.beneficiary] > 0) { //if investor has money in the vault, refund
+      if (state.bonus[command.beneficiary]) {
+        tokens = tokens.mul(105).div(100);
+        state.bonus[command.beneficiary] = false;
       }
-    } else {
-      state.passedKYC[command.beneficiary] = false;
-      if (state.vault[command.beneficiary] > 0) { //if investor has money in the vault, refund
-        state.vault[command.beneficiary] = getVaultBalance(state, command.beneficiary).sub(deposited);
-        state.balances[command.beneficiary] = getBalance(state, command.beneficiary).plus(deposited);
-      }
+      state.purchases = _.concat(state.purchases,
+        {tokens: tokens, rate: rate, wei: deposited, beneficiary: command.beneficiary, account: command.account}
+      );
+      state.vault[command.beneficiary] = 0;
+      state.balances[command.beneficiary] = getBalance(state, command.beneficiary).plus(deposited);
+      state.tokenBalances[command.beneficiary] = getTokenBalance(state, command.beneficiary).plus(tokens);
+      state.weiRaised = state.weiRaised.plus(deposited);
+      state.tokensSold = state.tokensSold.plus(new BigNumber(help.toAtto(tokens)));
+      state.crowdsaleSupply = state.crowdsaleSupply.plus(new BigNumber(help.toAtto(tokens)));
     }
     state = decreaseEthBalance(state, command.account, deposited);
     state = decreaseEthBalance(state, command.account, help.txGasCost(tx));
     help.debug(colors.green('SUCCESS validating purchase, tokens minted: ', tokens, ', rate:', rate, 'eth:', web3.fromWei(deposited, 'ether'), 'endBlocks:', crowdsale.endTime, 'blockTimestamp:', nextTime));
   } catch(e) {
     help.debug(colors.yellow('FAILURE validating purchase, out of TGE time: ', !inTGE, ', gasExceeded:', gasExceeded, ', minNotReached:', minNotReached, ', maxExceeded:', maxExceeded, ', capExceeded: ', capExceeded));
+    state = trackGasFromLastBlock(state, command.account);
+    assertExpectedException(e, shouldThrow, hasZeroAddress, state, command);
+  }
+  return state;
+}
+
+async function runRejectPurchaseCommand(command, state) {
+
+  let crowdsale = state.crowdsaleData,
+    { startTime, endTime} = crowdsale,
+    deposited = state.vault[command.beneficiary] || 0,
+    nextTime = latestTime(),
+    account = gen.getAccount(command.account),
+    beneficiaryAccount = gen.getAccount(command.beneficiary),
+    rate = state.crowdsaleData.rate,
+    hasZeroAddress = _.some([account, beneficiaryAccount], isZeroAddress),
+    newBalance = getBalance(state, command.beneficiary).plus(deposited);
+
+  let inTGE = nextTime >= startTime && nextTime <= endTime,
+    capExceeded = state.weiRaised.plus(new BigNumber(deposited)).gt(crowdsale.cap),
+    gasExceeded = (command.gasPrice > state.crowdsaleData.maxGasPrice) && inTGE,
+    maxExceeded = newBalance.gt(state.crowdsaleData.maxCumulativeInvest),
+    minNotReached = (deposited > 0) ? new BigNumber(deposited).lt(state.crowdsaleData.minInvest) : false;
+
+  let shouldThrow =
+    state.crowdsalePaused ||
+    crowdsale.rate == 0 ||
+    crowdsale.cap == 0 ||
+    crowdsale.maxGasPrice == 0 ||
+    crowdsale.minBuyingRequestInterval == 0 ||
+    crowdsale.minInvest == 0 ||
+    crowdsale.maxCumulativeInvest == 0 ||
+    crowdsale.minInvest.gt(crowdsale.maxCumulativeInvest) ||
+    state.crowdsaleFinalized ||
+    hasZeroAddress ||
+    maxExceeded ||
+    minNotReached ||
+    gasExceeded ||
+    command.account != state.owner;
+
+  let balanceOverflowed = state.weiRaised.plus(deposited);
+  if (capExceeded) {
+    let overflow = balanceOverflowed.sub(crowdsale.cap);
+    let available = balanceOverflowed.sub(state.weiRaised.add(overflow));
+    deposited = available;
+  }
+
+  try {
+    let tx = await state.crowdsaleContract.rejectPurchase(beneficiaryAccount, {from: account, gasPrice: (command.gasPrice ? command.gasPrice : state.crowdsaleData.maxGasPrice)});
+    assert.equal(false, shouldThrow, 'rejectPurchase should have thrown but it didn\'t');
+
+    let tokens = new BigNumber(0);
+
+    state.passedKYC[command.beneficiary] = false;
+    if (state.vault[command.beneficiary] > 0) { //if investor has money in the vault, refund
+      state.vault[command.beneficiary] = getVaultBalance(state, command.beneficiary).sub(deposited);
+      state.balances[command.beneficiary] = getBalance(state, command.beneficiary).plus(deposited);
+    }
+
+    state = decreaseEthBalance(state, command.account, deposited);
+    state = decreaseEthBalance(state, command.account, help.txGasCost(tx));
+    help.debug(colors.green('SUCCESS rejecting purchase, tokens minted: ', tokens, ', rate:', rate, 'eth:', web3.fromWei(deposited, 'ether'), 'endBlocks:', crowdsale.endTime, 'blockTimestamp:', nextTime));
+  } catch(e) {
+    help.debug(colors.yellow('FAILURE rejecting purchase, out of TGE time: ', !inTGE, ', gasExceeded:', gasExceeded, ', minNotReached:', minNotReached, ', maxExceeded:', maxExceeded, ', capExceeded: ', capExceeded));
     state = trackGasFromLastBlock(state, command.account);
     assertExpectedException(e, shouldThrow, hasZeroAddress, state, command);
   }
@@ -348,18 +496,16 @@ async function runFinalizeCrowdsaleCommand(command, state) {
     state = increaseEthBalance(state, state.wallet, state.weiRaised); //TODO: check this call
 
     // mint 49% tokens
-    let toMint = supplyBeforeFinalize.mul(49).div(51),
+    let toMint = new BigNumber(supplyBeforeFinalize).mul(49).div(51),
       newSupply = supplyBeforeFinalize.plus(toMint);
     state.tokenBalances[command.account] = getTokenBalance(state, command.account).plus(toMint);
     state.tokenSupply = newSupply;
 
-    // empty vaults
-    let vault = Vault.at(await state.crowdsaleContract.vault());
-    for (var i = 0; i < state.vault.length; i++) {
-      state.vault[i] = 0;
-      new BigNumber(state.vault[i]).should.be.bignumber.equal(await vault.deposited(gen.getAccount(i)));
-      // TODO: increase ETH to account
-    }
+    // check foundation balance and total supply
+    let currentTotalSupply = new BigNumber(await state.token.totalSupply());
+    let foundationBalance = new BigNumber(await state.token.balanceOf(gen.getAccount(state.wallet)));
+    foundationBalance.should.be.bignumber.equal(toMint);
+    toMint.plus(supplyBeforeFinalize).should.be.bignumber.equal(currentTotalSupply);
 
     //check token ownership change
     let tokenOwnerAfterFinalize = await state.token.owner();
@@ -408,7 +554,6 @@ async function runBurnTokensCommand(command, state) {
 }
 
 async function runFundCrowdsaleToCap(command, state) {
-
   if (!state.crowdsaleFinalized) {
     // unpause the crowdsale if needed
     if (state.crowdsalePaused) {
@@ -422,19 +567,24 @@ async function runFundCrowdsaleToCap(command, state) {
       if (latestTime() < state.crowdsaleData.startTime) {
         await increaseTimeTestRPCTo(state.crowdsaleData.startTime);
       }
+
       // reach the cap
       let ethToCap = web3.fromWei(cap.minus(weiRaised), 'ether'),
         maxInvest = web3.fromWei(state.crowdsaleData.maxCumulativeInvest, 'ether'),
-        purchasesNeeded = ethToCap.div(maxInvest).ceil().toNumber();
-      for (var i = 1; i <= purchasesNeeded; i++) {
-        let buyTokensCommand = {account: i, eth: maxInvest, beneficiary: i};
-        state = await runBuyTokensCommand(buyTokensCommand, state);
-        let validatePurchaseCommand = {account: state.owner, beneficiary: i, acceptance: true};
-        state = await runValidatePurchaseCommand(validatePurchaseCommand, state);
+        purchasesNeeded = Math.ceil(ethToCap/maxInvest);
 
-        new BigNumber(state.weiRaised).should.be.bignumber.equal(await state.crowdsaleContract.weiRaised());
-        let vault = Vault.at(await state.crowdsaleContract.vault());
-        new BigNumber(state.vault[i]).should.be.bignumber.equal(await vault.deposited(gen.getAccount(i)));
+      for (var i = 1; i <= purchasesNeeded; i++) {
+        if (state.wallet == i) {
+          purchasesNeeded++;
+        } else {
+          let buyTokensCommand = {account: i, eth: maxInvest, beneficiary: i};
+          state = await runBuyTokensCommand(buyTokensCommand, state);
+          let validatePurchaseCommand = {account: state.owner, beneficiary: i};
+          state = await runValidatePurchaseCommand(validatePurchaseCommand, state);
+          new BigNumber(state.weiRaised).should.be.bignumber.equal(await state.crowdsaleContract.weiRaised());
+          let vault = Vault.at(await state.crowdsaleContract.vault());
+          new BigNumber(state.vault[i]).should.be.bignumber.equal(await vault.deposited(gen.getAccount(i)));
+        }
       }
 
       new BigNumber(state.weiRaised).should.be.bignumber.equal(cap);
@@ -460,8 +610,12 @@ const commands = {
   waitTime: {gen: gen.waitTimeCommandGen, run: runWaitTimeCommand},
   buyTokens: {gen: gen.buyTokensCommandGen, run: runBuyTokensCommand},
   validatePurchase: {gen: gen.validatePurchaseCommandGen, run: runValidatePurchaseCommand},
+  rejectPurchase: {gen: gen.rejectPurchaseCommandGen, run: runRejectPurchaseCommand},
   burnTokens: {gen: gen.burnTokensCommandGen, run: runBurnTokensCommand},
   setWallet: {gen: gen.setWalletCommandGen, run: runSetWalletCommand},
+  setToken: {gen: gen.setTokenCommandGen, run: runSetTokenCommand},
+  claimVaultFunds: {gen: gen.claimVaultFundsCommandGen, run: runClaimVaultFundsCommand},
+  refundAll: {gen: gen.refundAllCommandGen, run: runRefundAllCommand},
   // sendTransaction: {gen: gen.sendTransactionCommandGen, run: runSendTransactionCommand},
   pauseCrowdsale: {gen: gen.pauseCrowdsaleCommandGen, run: runPauseCrowdsaleCommand},
   pauseToken: {gen: gen.pauseTokenCommandGen, run: runPauseTokenCommand},

@@ -44,9 +44,9 @@ contract Vault is Ownable {
     uint256 amount = deposited[beneficiary].sub(overflow);
     deposited[beneficiary] = 0;
 
-    wallet.transfer(amount); //TODO: check if works
+    wallet.transfer(amount);
     if (overflow > 0) {
-      beneficiary.transfer(overflow); //TODO: check if works
+      beneficiary.transfer(overflow);
       PartialRefund(beneficiary, overflow);
     }
     Released(beneficiary, amount);
@@ -57,18 +57,16 @@ contract Vault is Ownable {
    */
   function refund(address beneficiary) onlyOwner public {
     uint256 depositedValue = deposited[beneficiary];
-    if (depositedValue > 0) {
-      deposited[beneficiary] = 0;
-      beneficiary.transfer(depositedValue);
-      Refunded(beneficiary, depositedValue);
-    }
+    deposited[beneficiary] = 0;
+    beneficiary.transfer(depositedValue);
+    Refunded(beneficiary, depositedValue);
   }
 
   /**
    * refunds all funds on the vault to the corresponding beneficiaries
    */
   function refundAll() onlyOwner public { //TODO: test this function
-    for (uint32 i = 0; i < fundsOwners.length; i++) {
+    for (uint256 i = 0; i < fundsOwners.length; i++) {
       refund(fundsOwners[i]);
     }
   }
