@@ -41,6 +41,16 @@ will make the property-based tests in `test/QiibeeCrowdsaleGenTest.js` to run 50
 ## Coverage
 Coverage has been disable because of conflicts with the different solidity versions of the contracts.
 
+## Deploy to Ropsten
+* Deploy [qb-token](https://github.com/qiibee/qb-token/) contract and get the address
+* Set environment variables:
+    * `ROPSTEN_PRIVATE_KEY` - private key of account you want to use to deploy with (omit `0x`)
+    * `INFURA_API_TOKEN` - your Infura API token
+* Update values in `migrations/2_crowdsale_migration.js` 
+    * update token address with the address of the deployed `QiibeeToken` (in step 1)
+    * update `_openingTime`
+    * update `_closingTime`
+
 ## License
 
 qiibee Token is open source and distributed under the Apache License v2.0

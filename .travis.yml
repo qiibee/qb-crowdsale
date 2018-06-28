@@ -20,6 +20,8 @@ matrix:
 # script:
 #   - yarn lint
 #   - ./scripts/ci.sh
+install:
+  - npm install
 script:
   - yarn lint
   - npm test
