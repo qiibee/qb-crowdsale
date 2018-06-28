@@ -28,19 +28,6 @@ contract QiibeeToken {
 
 /**
    @title Crowdsale for the QBX Token Generation Event
-
-   Implementation of the QBX Token Generation Event (TGE): A X-week capped presale with a soft cap
-   and a hard cap, both of them expressed in wei. The crowdsale is NOT whitelisted.
-
-   Tokens have a fixed rate until the goal (soft cap) is reached and then a dynamic rate linked to
-   the amount of tokens sold is applied.
-
-   In case of the goal not being reached by purchases made during the event the token will not start
-   operating and all funds sent during this period will be made available to be claimed by the
-   originating addresses.
-
-   In the finalize() function, the FOUNDATION_SUPPLY tokens are minted and distributed to the
-   foundation wallet. Token is unpaused and minting is disabled.
  */
 
 contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsale, Pausable {
@@ -159,43 +146,30 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
       _;
     }
 
-    /****
-     * TODO: FIX BUG (or let it be): Let's say Alice invests on 1st week, so bonus[Alice] = true but she does not
-     * manage to schedule the KYC call during that week. Then, she invests more on the 2nd week.
-     * Here is when bonus[Alice] is replaced by false.
-     * Later on, she goes through the KYC process (getting accepted) so her funds of the 2
-     * contributions (that are are deposited in the vault) are released but she does not receive
-     * the tokens of the contribution she made during the 1st week.
-     * MANUAL FIX: This situation is quite unlikely to happen but, if it happens, we can manually
-     * distribute the bonus tokens to the contributor afterwards.
-     * SOLUTION: TODO.
-     ****/
-
     /*
      * @dev Whenever buyTokens function is called there are 3 use cases that can take place:
-     * 1). if contributor has already passed KYC (this means that accepted[beneficiary] is true),
+     * 1). if contributor has already passed KYC (this means that accepted[msg.sender] is true),
      * a normal purchase is done (funds go to qiibee wallet and tokens are minted (see _mintTokens
      * function)
-     * 2). if contributor has been REJECTED from KYC (this means that rejected[beneficiary] is true),
+     * 2). if contributor has been REJECTED from KYC (this means that rejected[msg.sender] is true),
      * funds are immediately refunded to the user and NO minting is performed.
      * 3). if contributor has never gone through the KYC process (this means that both
-     * accepted[beneficiary] and rejected[beneficiary] are false) the funds are deposited in a vault
+     * accepted[msg.sender] and rejected[msg.sender] are false) the funds are deposited in a vault
      * until the contract knows whether the contributor has passed the KYC or not.
-     * @param beneficiary address where tokens will be sent to in case of acceptance
      */
-    function buyTokens(address beneficiary) public payable whenNotPaused capNotReached onlyWhileOpen {
-        _preValidatePurchase(beneficiary, msg.value);
+    function buyTokens() public payable whenNotPaused capNotReached onlyWhileOpen {
+        _preValidatePurchase(msg.sender, msg.value);
 
-        if (accepted[beneficiary]) { // contributor has been accepted in the KYC process
-            _mintTokens(beneficiary, msg.value);
+        if (accepted[msg.sender]) { // contributor has been accepted in the KYC process
+            _mintTokens(msg.sender, msg.value);
         } else {
-            if (rejected[beneficiary]) { // contributor has been rejected in the KYC process
+            if (rejected[msg.sender]) { // contributor has been rejected in the KYC process
                 revert();
                 // beneficiary.transfer(msg.value); // refund money to contributor
                 // Refunded(beneficiary, msg.value);
             } else { // contributor has not gone through the KYC process yet
-                bonus[beneficiary] = _checkBonus();
-                vault.deposit.value(msg.value)(beneficiary);
+                bonus[msg.sender] = _checkBonus();
+                vault.deposit.value(msg.value)(msg.sender);
             }
         }
     }
@@ -208,9 +182,8 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * 2). if contributor has never tried contributing yet (so he has no funds in the vault), we just add
      * him/her to the accepted array.
      * @param beneficiary address where tokens are sent to
-     * @param acceptance whether the user has passed KYC or not
      */
-    function validatePurchase(address beneficiary) onlyOwner public whenNotPaused {
+    function validatePurchase(address beneficiary) onlyOwner external whenNotPaused {
         require(beneficiary != address(0));
         uint256 deposited = vault.deposited(beneficiary); // wei deposited by contributor
         accepted[beneficiary] = true; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
@@ -229,9 +202,8 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * 2). if contributor has never tried contributing yet (so he has no funds in the vault), we just add
      * him/her to the rejected array.
      * @param beneficiary address where tokens are sent to
-     * @param acceptance whether the user has passed KYC or not
      */
-    function rejectPurchase(address beneficiary) onlyOwner public whenNotPaused {
+    function rejectPurchase(address beneficiary) onlyOwner external whenNotPaused {
         require(beneficiary != address(0));
         uint256 deposited = vault.deposited(beneficiary); // wei deposited by contributor
         rejected[beneficiary] = true; // Add contributor to KYC array so if he reinvests he automatically gets the tokens. //TODO: beneficiary or sender?
@@ -263,8 +235,9 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
 
     /**
       @dev changes the token owner
+      @param tokenAddress address address of the token contract
     */
-    function setToken(address tokenAddress) onlyOwner beforeOpen public {
+    function setToken(address tokenAddress) onlyOwner beforeOpen external {
       require(tokenAddress != address(0));
       token = QiibeeToken(tokenAddress);
     }
@@ -273,7 +246,7 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * @dev Changes the current wallet for a new one. Only the owner can call this function.
      * @param _wallet new wallet
      */
-    function setWallet(address _wallet) onlyOwner public {
+    function setWallet(address _wallet) onlyOwner external {
         require(_wallet != address(0));
         wallet = _wallet;
         WalletChange(_wallet);
@@ -284,7 +257,7 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * This is a safe method in case refundAll() didn't work so each contributor can 
      * still claim their funds stored in the vault. 
      */
-    function claimVaultFunds() whenNotPaused public {
+    function claimVaultFunds() whenNotPaused external {
         require(isFinalized);
         vault.refund(msg.sender);
     }
@@ -293,9 +266,9 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * @dev Allows owner to refund all the contributors that have a reamining balance
      * on the vault. This call is only allowed after crowdsale is finished 
      */
-    function refundAll() whenNotPaused onlyOwner public {
+    function refundAll(uint[] indexes) whenNotPaused onlyOwner external {
         require(isFinalized);
-        vault.refundAll();
+        vault.refundAll(indexes);
     }
 
     /*
@@ -305,8 +278,6 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
      * @param _weiAmount amount in wei
      */
     function _preValidatePurchase(address _beneficiary, uint256 _weiAmount) internal {
-        require(_beneficiary != address(0));
-        require(msg.sender == _beneficiary);
         require(_weiAmount != 0);
         uint256 deposited = vault.deposited(_beneficiary); // wei deposited by contributor
         uint256 newBalance = msg.value.add(deposited);

@@ -50,7 +50,6 @@ module.exports = {
   buyTokensCommandGen: jsc.record({
     type: jsc.constant('buyTokens'),
     account: accountGen,
-    beneficiary: accountGen,
     eth: jsc.nat(0, 200)
   }),
 
@@ -73,7 +72,8 @@ module.exports = {
 
   refundAllCommandGen: jsc.record({
     type: jsc.constant('refundAll'),
-    fromAccount: knownAccountGen
+    fromAccount: knownAccountGen,
+    indexes: jsc.array(jsc.nat)
   }),
 
   validatePurchaseCommandGen: jsc.record({

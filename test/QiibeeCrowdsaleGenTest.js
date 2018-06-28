@@ -185,6 +185,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
         vault: [],
         bonus: [],
         tokenSupply: zero,
+        fundsOwners: [],
       };
 
       for (let commandParams of input.commands) {
@@ -231,14 +232,17 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       await runGeneratedCrowdsaleAndCommands({
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'fundCrowdsaleToCap', account: 0, finalize:false},
-          { type: 'waitTime','seconds':duration.minutes(12)},
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 205000 },
+          { type: 'buyTokens', account: 2, eth: 230000 },
+          { type: 'validatePurchase', account: 0, beneficiary: 2 },
+          { type: 'buyTokens', account: 3, eth: 10000 },
+          { type: 'validatePurchase', account: 0, beneficiary: 3 },
+          { type: 'buyTokens', account: 4, eth: 1 },
+          { type: 'validatePurchase', account: 0, beneficiary: 4 },
         ],
         crowdsale:
         {
           rate: 6000, cap: 240000,
-          minInvest: 6000, maxCumulativeInvest: 250000,
+          minInvest: 1, maxCumulativeInvest: 240000,
           maxGasPrice: 50000000000,
           owner: 0, foundationWallet: 10
         }
@@ -249,7 +253,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       await runGeneratedCrowdsaleAndCommands({
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 0.5 },
+          { type: 'buyTokens', account: 3, eth: 0.5 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -264,7 +268,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       await runGeneratedCrowdsaleAndCommands({
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 101 },
+          { type: 'buyTokens', account: 3, eth: 101 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
         ],
         crowdsale: {
@@ -280,11 +284,11 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       await runGeneratedCrowdsaleAndCommands({
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 10000 },
+          { type: 'buyTokens', account: 3, eth: 10000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 10000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 28000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 1 },
+          { type: 'buyTokens', account: 3, eth: 10000 },
+          { type: 'buyTokens', account: 3, eth: 28000 },
+          { type: 'buyTokens', account: 3, eth: 1 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -299,7 +303,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'fundCrowdsaleToCap','account': 0,'finalize': false},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 6000 },
+          { type: 'buyTokens', account: 2, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -320,7 +324,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       await runGeneratedCrowdsaleAndCommands({
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 1, gasPrice: 50000000001 },
+          { type: 'buyTokens', account: 3, eth: 1, gasPrice: 50000000001 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -394,7 +398,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 4, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -411,18 +415,18 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 7000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 4, eth: 7000 },
           { type: 'validatePurchase', account: 0, beneficiary: 4 },
           { type: 'validatePurchase', account: 0, beneficiary: 5 },
-          { type: 'buyTokens', beneficiary: 5, account: 5, eth: 7000 },
-          { type: 'buyTokens', beneficiary: 6, account: 6, eth: 7000 },
+          { type: 'buyTokens', account: 5, eth: 7000 },
+          { type: 'buyTokens', account: 6, eth: 7000 },
           { type: 'rejectPurchase', account: 0, beneficiary: 6 },
-          { type: 'buyTokens', beneficiary: 6, account: 6, eth: 7000 },
+          { type: 'buyTokens', account: 6, eth: 7000 },
           { type: 'waitTime','seconds':duration.days(10)},
-          { type: 'buyTokens', beneficiary: 6, account: 6, eth: 60000 },
+          { type: 'buyTokens', account: 6, eth: 60000 },
           { type: 'finalizeCrowdsale', fromAccount: 0 }
         ],
         crowdsale: {
@@ -440,9 +444,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 7000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 7000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
         ],
         crowdsale: {
@@ -460,9 +464,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 5, account: 5, eth: 7000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 4, eth: 6000 },
+          { type: 'buyTokens', account: 5, eth: 7000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
           { type: 'validatePurchase', account: 0, beneficiary: 4 },
           { type: 'validatePurchase', account: 0, beneficiary: 5 },
@@ -484,9 +488,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
           { type: 'waitTime','seconds':duration.days(1)},
           { type: 'validatePurchase', account: 0, beneficiary: 2 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 8000 },
+          { type: 'buyTokens', account: 2, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 8000 },
         ],
         crowdsale: {
           rate: 6000, cap: 19000,
@@ -507,7 +511,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 1, beneficiary: 3 },
         ],
         crowdsale: {
@@ -525,9 +529,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -544,9 +548,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'rejectPurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -563,9 +567,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'rejectPurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -581,7 +585,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'waitTime','seconds':duration.days(15)},
           { type: 'rejectPurchase', account: 0, beneficiary: 3 },
         ],
@@ -603,10 +607,10 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 6000 },
+          { type: 'buyTokens', account: 4, eth: 6000 },
+          { type: 'buyTokens', account: 4, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 4 },
         ],
         crowdsale: {
@@ -624,7 +628,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'waitTime','seconds':duration.days(9)},
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
         ],
@@ -643,7 +647,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(9)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
         ],
         crowdsale: {
@@ -662,9 +666,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
     //   let crowdsaleAndCommands = {
     //     commands: [
     //       { type: 'waitTime','seconds':duration.days(1)},
-    //       { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+    //       { type: 'buyTokens', account: 3, eth: 6000 },
     //       { type: 'waitTime','seconds':duration.days(9)},
-    //       { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+    //       { type: 'buyTokens', account: 3, eth: 6000 },
     //       { type: 'validatePurchase', account: 0, beneficiary: 3 },
     //     ],
     //     crowdsale: {
@@ -682,10 +686,10 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
           { type: 'waitTime','seconds':duration.days(9)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -706,7 +710,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'rejectPurchase', account: 0, beneficiary: 3 },
         ],
         crowdsale: {
@@ -725,7 +729,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
           { type: 'rejectPurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -743,9 +747,9 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 100000 },
+          { type: 'buyTokens', account: 3, eth: 100000 },
           { type: 'validatePurchase', account: 0, beneficiary: 4 },
-          { type: 'buyTokens', beneficiary: 4, account: 0, eth: 150000 },
+          { type: 'buyTokens', account: 0, eth: 150000 },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -762,11 +766,11 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds': duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 5, account: 5, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 6, account: 6, eth: 6000 },
+          { type: 'buyTokens', account: 2, eth: 6000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 4, eth: 6000 },
+          { type: 'buyTokens', account: 5, eth: 6000 },
+          { type: 'buyTokens', account: 6, eth: 6000 },
           { type: 'fundCrowdsaleToCap','account': 0,'finalize': false},
           { type: 'waitTime','seconds': duration.days(10)},
           { type: 'finalizeCrowdsale', fromAccount: 0 },
@@ -834,7 +838,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 5 },
+          { type: 'buyTokens', account: 2, eth: 5 },
           { type: 'waitTime','seconds':duration.days(10)},
           { type: 'finalizeCrowdsale', fromAccount: 0 },
           { type: 'claimVaultFunds', fromAccount: 2 },
@@ -854,7 +858,7 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 5 },
+          { type: 'buyTokens', account: 2, eth: 5 },
           { type: 'waitTime','seconds':duration.days(10)},
           { type: 'claimVaultFunds', fromAccount: 2 },
         ],
@@ -887,16 +891,83 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       await runGeneratedCrowdsaleAndCommands(crowdsaleAndCommands);
     });
 
-    it('should refund all vault funds', async function() {
+    it('should refund all vault funds for the indexes sent', async function() {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 5 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 5 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 5 },
+          { type: 'buyTokens', account: 2, eth: 5 },
+          { type: 'buyTokens', account: 3, eth: 5 },
+          { type: 'buyTokens', account: 4, eth: 5 },
           { type: 'waitTime','seconds':duration.days(10)},
           { type: 'finalizeCrowdsale', fromAccount: 0 },
-          { type: 'refundAll', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2] },
+        ],
+        crowdsale: {
+          rate: 6000, cap: 240000,
+          minInvest: 4, maxCumulativeInvest: 48000,
+          maxGasPrice: 50000000000,
+          owner: 0, foundationWallet: 10
+        }
+      };
+
+      await runGeneratedCrowdsaleAndCommands(crowdsaleAndCommands);
+    });
+
+    it('should refund with 0 if already refunded', async function() {
+      let crowdsaleAndCommands = {
+        commands: [
+          { type: 'waitTime','seconds':duration.days(1)},
+          { type: 'buyTokens', account: 2, eth: 5 },
+          { type: 'buyTokens', account: 3, eth: 5 },
+          { type: 'buyTokens', account: 4, eth: 5 },
+          { type: 'waitTime','seconds':duration.days(10)},
+          { type: 'finalizeCrowdsale', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2] },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2] },
+        ],
+        crowdsale: {
+          rate: 6000, cap: 240000,
+          minInvest: 4, maxCumulativeInvest: 48000,
+          maxGasPrice: 50000000000,
+          owner: 0, foundationWallet: 10
+        }
+      };
+
+      await runGeneratedCrowdsaleAndCommands(crowdsaleAndCommands);
+    });
+
+    it('should fail refunding all vault funds if indexes do not belong to any', async function() {
+      let crowdsaleAndCommands = {
+        commands: [
+          { type: 'waitTime','seconds':duration.days(1)},
+          { type: 'buyTokens', account: 2, eth: 5 },
+          { type: 'buyTokens', account: 3, eth: 5 },
+          { type: 'buyTokens', account: 4, eth: 5 },
+          { type: 'waitTime','seconds':duration.days(10)},
+          { type: 'finalizeCrowdsale', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [3,4,5] },
+        ],
+        crowdsale: {
+          rate: 6000, cap: 240000,
+          minInvest: 4, maxCumulativeInvest: 48000,
+          maxGasPrice: 50000000000,
+          owner: 0, foundationWallet: 10
+        }
+      };
+
+      await runGeneratedCrowdsaleAndCommands(crowdsaleAndCommands);
+    });
+
+    it('should fail refunding all vault funds if indexes length is bigger than the fundsOwner array', async function() {
+      let crowdsaleAndCommands = {
+        commands: [
+          { type: 'waitTime','seconds':duration.days(1)},
+          { type: 'buyTokens', account: 2, eth: 5 },
+          { type: 'buyTokens', account: 3, eth: 5 },
+          { type: 'buyTokens', account: 4, eth: 5 },
+          { type: 'waitTime','seconds':duration.days(10)},
+          { type: 'finalizeCrowdsale', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2,3,4,5] },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -913,12 +984,12 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 5 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 5 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 5 },
+          { type: 'buyTokens', account: 2, eth: 5 },
+          { type: 'buyTokens', account: 3, eth: 5 },
+          { type: 'buyTokens', account: 4, eth: 5 },
           { type: 'waitTime','seconds':duration.days(10)},
           { type: 'finalizeCrowdsale', fromAccount: 0 },
-          { type: 'refundAll', fromAccount: 3 },
+          { type: 'refundAll', fromAccount: 3, indexes: [0,1,2] },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -935,12 +1006,12 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 5 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 5 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 5 },
+          { type: 'buyTokens', account: 2, eth: 5 },
+          { type: 'buyTokens', account: 3, eth: 5 },
+          { type: 'buyTokens', account: 4, eth: 5 },
           { type: 'waitTime','seconds':duration.days(10)},
           { type: 'finalizeCrowdsale', fromAccount: 0 },
-          { type: 'refundAll', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2] },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -957,24 +1028,24 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
       let crowdsaleAndCommands = {
         commands: [
           { type: 'waitTime','seconds':duration.days(1)},
-          { type: 'buyTokens', beneficiary: 2, account: 2, eth: 7000 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 2, eth: 7000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
           { type: 'validatePurchase', account: 0, beneficiary: 3 },
-          { type: 'buyTokens', beneficiary: 3, account: 3, eth: 6000 },
-          { type: 'buyTokens', beneficiary: 4, account: 4, eth: 7000 },
+          { type: 'buyTokens', account: 3, eth: 6000 },
+          { type: 'buyTokens', account: 4, eth: 7000 },
           { type: 'validatePurchase', account: 0, beneficiary: 4 },
           { type: 'validatePurchase', account: 0, beneficiary: 5 },
-          { type: 'buyTokens', beneficiary: 5, account: 5, eth: 7000 },
+          { type: 'buyTokens', account: 5, eth: 7000 },
           { type: 'rejectPurchase', account: 0, beneficiary: 5 },
-          { type: 'buyTokens', beneficiary: 5, account: 5, eth: 7000 },
-          { type: 'buyTokens', beneficiary: 6, account: 6, eth: 7000 },
+          { type: 'buyTokens', account: 5, eth: 7000 },
+          { type: 'buyTokens', account: 6, eth: 7000 },
           { type: 'rejectPurchase', account: 0, beneficiary: 6 },
-          { type: 'buyTokens', beneficiary: 6, account: 6, eth: 7000 },
-          { type: 'buyTokens', beneficiary: 7, account: 7, eth: 7000 },
+          { type: 'buyTokens', account: 6, eth: 7000 },
+          { type: 'buyTokens', account: 7, eth: 7000 },
           { type: 'waitTime','seconds':duration.days(10)},
-          { type: 'refundAll', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2,3,4] },
           { type: 'finalizeCrowdsale', fromAccount: 0 },
-          { type: 'refundAll', fromAccount: 0 },
+          { type: 'refundAll', fromAccount: 0, indexes: [0,1,2,3,4] },
         ],
         crowdsale: {
           rate: 6000, cap: 240000,
@@ -986,7 +1057,6 @@ contract('QiibeeCrowdsale property-based test', function(accounts) {
 
       await runGeneratedCrowdsaleAndCommands(crowdsaleAndCommands);
     });
-
 
   });
 

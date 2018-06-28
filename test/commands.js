@@ -160,14 +160,16 @@ async function runClaimVaultFundsCommand(command, state) {
 async function runRefundAllCommand(command, state) {
   let  from = gen.getAccount(command.fromAccount),
     hasZeroAddress = _.some([from], isZeroAddress);
+  let validIndexes = command.indexes.every(idx => {return state.fundsOwners[idx] !== undefined;});
 
   let shouldThrow = hasZeroAddress ||
     state.crowdsalePaused ||
     !state.crowdsaleFinalized ||
-    command.fromAccount != state.owner;
+    command.fromAccount != state.owner ||
+    !validIndexes;
 
   try {
-    await state.crowdsaleContract.refundAll({from: from});
+    await state.crowdsaleContract.refundAll(command.indexes, {from: from});
     assert.equal(false, shouldThrow, 'refundAll should have thrown but it didn\'t');
     let vault = Vault.at(await state.crowdsaleContract.vault());
 
@@ -193,21 +195,19 @@ async function runBuyTokensCommand(command, state) {
     weiCost = web3.toWei(command.eth, 'ether'),
     nextTime = latestTime(),
     account = gen.getAccount(command.account),
-    beneficiaryAccount = gen.getAccount(command.beneficiary),
     rate = state.crowdsaleData.rate,
-    hasZeroAddress = _.some([account, beneficiaryAccount], isZeroAddress),
-    deposited = state.vault[command.beneficiary] || 0,
-    newBalance = getBalance(state, command.beneficiary).plus(deposited).plus(weiCost);
+    hasZeroAddress = _.some([account], isZeroAddress),
+    deposited = state.vault[command.account] || 0,
+    newBalance = getBalance(state, command.account).plus(deposited).plus(weiCost);
 
   let inTGE = nextTime >= startTime && nextTime <= endTime,
-    capReached = state.weiRaised.eq(crowdsale.cap),
+    capReached = state.weiRaised.gte(crowdsale.cap),
     capExceeded = state.weiRaised.plus(new BigNumber(help.toAtto(command.eth))).gt(crowdsale.cap),
     gasExceeded = (command.gasPrice > state.crowdsaleData.maxGasPrice) && inTGE,
-    maxExceeded = newBalance.gt(state.crowdsaleData.maxCumulativeInvest),
+    maxExceeded = newBalance.gt(crowdsale.maxCumulativeInvest),
     minNotReached = new BigNumber(help.toAtto(command.eth)).lt(state.crowdsaleData.minInvest);
 
   let shouldThrow = (!inTGE) ||
-    command.beneficiary !== command.account ||
     state.crowdsalePaused ||
     crowdsale.rate == 0 ||
     crowdsale.cap == 0 ||
@@ -222,14 +222,15 @@ async function runBuyTokensCommand(command, state) {
     minNotReached ||
     gasExceeded ||
     capReached ||
-    state.passedKYC[command.beneficiary] === false;
+    state.passedKYC[command.account] === false;
 
   let bonusTime = nextTime <= startTime + duration.days(7);
+
   try {
-    const tx = await state.crowdsaleContract.buyTokens(beneficiaryAccount, {value: weiCost, from: account, gasPrice: (command.gasPrice ? command.gasPrice : state.crowdsaleData.maxGasPrice)});
+    const tx = await state.crowdsaleContract.buyTokens({value: weiCost, from: account, gasPrice: (command.gasPrice ? command.gasPrice : state.crowdsaleData.maxGasPrice)});
     assert.equal(false, shouldThrow, 'buyTokens should have thrown but it didn\'t');
 
-    if (state.passedKYC[command.beneficiary]) { //investor has already passed the KYC
+    if (state.passedKYC[command.account]) { //investor has already passed the KYC
       let balanceOverflowed = state.weiRaised.plus(new BigNumber(help.toAtto(command.eth)));
       if (capExceeded) {
         let overflow = balanceOverflowed.sub(crowdsale.cap);
@@ -239,28 +240,29 @@ async function runBuyTokensCommand(command, state) {
 
       let tokens = new BigNumber(web3.fromWei(weiCost, 'ether')).mul(rate);
       if (bonusTime) {
-        state.bonus[command.beneficiary] = true;
+        state.bonus[command.account] = true;
         tokens = tokens.mul(105).div(100);
       }
 
-      state.balances[command.beneficiary] = getBalance(state, command.beneficiary).plus(weiCost);
-      state.tokenBalances[command.beneficiary] = getTokenBalance(state, command.beneficiary).plus(tokens);
+      state.balances[command.account] = getBalance(state, command.account).plus(weiCost);
+      state.tokenBalances[command.account] = getTokenBalance(state, command.account).plus(tokens);
       state.weiRaised = state.weiRaised.plus(weiCost);
       state.tokensSold = state.tokensSold.plus(new BigNumber(help.toAtto(tokens)));
       state.crowdsaleSupply = state.crowdsaleSupply.plus(new BigNumber(help.toAtto(tokens)));
-      state.bonus[command.beneficiary] = false;
+      state.bonus[command.account] = false;
       state.purchases = _.concat(state.purchases,
-        {tokens: tokens, rate: rate, wei: weiCost, beneficiary: command.beneficiary, account: command.account}
+        {tokens: tokens, rate: rate, wei: weiCost, account: command.account}
       );
       state = decreaseEthBalance(state, command.account, weiCost); //TODO: chekc if this has to go outside the if else
     } else {
-      if (state.passedKYC[command.beneficiary] == false) { // KYC rejected --> refund
+      if (state.passedKYC[command.account] == false) { // KYC rejected --> refund
         //TODO: refund money
       } else { //never gone through KYC, deposit in vault
         if (bonusTime) {
-          state.bonus[command.beneficiary] = true;
+          state.bonus[command.account] = true;
         }
-        state.vault[command.beneficiary] = getVaultBalance(state, command.beneficiary).plus(weiCost);
+        state.fundsOwners.push(command.account);
+        state.vault[command.account] = getVaultBalance(state, command.account).plus(weiCost);
         state = decreaseEthBalance(state, command.account, weiCost); //TODO: chekc if this has to go outside the if else
       }
     }
@@ -577,7 +579,7 @@ async function runFundCrowdsaleToCap(command, state) {
         if (state.wallet == i) {
           purchasesNeeded++;
         } else {
-          let buyTokensCommand = {account: i, eth: maxInvest, beneficiary: i};
+          let buyTokensCommand = {account: i, eth: maxInvest};
           state = await runBuyTokensCommand(buyTokensCommand, state);
           let validatePurchaseCommand = {account: state.owner, beneficiary: i};
           state = await runValidatePurchaseCommand(validatePurchaseCommand, state);

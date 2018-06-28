@@ -64,10 +64,12 @@ contract Vault is Ownable {
 
   /**
    * refunds all funds on the vault to the corresponding beneficiaries
+   * @param indexes list of indexes to look up for in the fundsOwner array to refund
    */
-  function refundAll() onlyOwner public { //TODO: test this function
-    for (uint256 i = 0; i < fundsOwners.length; i++) {
-      refund(fundsOwners[i]);
+  function refundAll(uint[] indexes) onlyOwner public { //TODO: test this function
+    require(indexes.length <= fundsOwners.length);
+    for (uint i = 0; i < indexes.length; i++) {
+      refund(fundsOwners[indexes[i]]);
     }
   }
 }

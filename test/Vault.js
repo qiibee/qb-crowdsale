@@ -60,7 +60,7 @@ contract('Vault', function ([owner, wallet, investor, investor2, investor3, inve
     await this.vault.refund(investor, {from: investor}).should.be.rejectedWith(help.EVMThrow);
   });
 
-  it('should refund all', async function () {
+  it('should refund all (that are passed in the indexes)', async function () {
     const pre = web3.eth.getBalance(investor);
     const pre2 = web3.eth.getBalance(investor2);
     const pre3 = web3.eth.getBalance(investor3);
@@ -69,7 +69,7 @@ contract('Vault', function ([owner, wallet, investor, investor2, investor3, inve
     await this.vault.deposit(investor2, {value, from: owner});
     await this.vault.deposit(investor3, {value, from: owner});
     await this.vault.deposit(investor4, {value, from: owner});
-    await this.vault.refundAll({from: owner}).should.be.fulfilled;
+    await this.vault.refundAll([0,1,2,3],{from: owner}).should.be.fulfilled;
     const post = web3.eth.getBalance(investor);
     const post2 = web3.eth.getBalance(investor2);
     const post3 = web3.eth.getBalance(investor3);
@@ -80,12 +80,28 @@ contract('Vault', function ([owner, wallet, investor, investor2, investor3, inve
     post4.should.be.bignumber.equal(pre4.plus(value));
   });
 
+  it('should fail refunding all if array of indexes length is bigger than fundsOwners array length', async function () {
+    await this.vault.deposit(investor, {value, from: owner});
+    await this.vault.deposit(investor2, {value, from: owner});
+    await this.vault.deposit(investor3, {value, from: owner});
+    await this.vault.deposit(investor4, {value, from: owner});
+    await this.vault.refundAll([0,1,2,3,4,5],{from: owner}).should.be.rejectedWith(help.EVMThrow);
+  });
+
+  it('should fail refunding all if index do not belong to fundsOwners', async function () {
+    await this.vault.deposit(investor, {value, from: owner});
+    await this.vault.deposit(investor2, {value, from: owner});
+    await this.vault.deposit(investor3, {value, from: owner});
+    await this.vault.deposit(investor4, {value, from: owner});
+    await this.vault.refundAll([3,4,5],{from: owner}).should.be.rejectedWith(help.EVMThrow);
+  });
+
   it('should not refund all if not owner', async function () {
     await this.vault.deposit(investor, {value, from: owner});
     await this.vault.deposit(investor2, {value, from: owner});
     await this.vault.deposit(investor3, {value, from: owner});
     await this.vault.deposit(investor4, {value, from: owner});
-    await this.vault.refundAll({from: investor}).should.be.rejectedWith(help.EVMThrow);
+    await this.vault.refundAll([0,1,2,3], {from: investor}).should.be.rejectedWith(help.EVMThrow);
   });
 
 });
