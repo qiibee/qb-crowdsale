@@ -4,7 +4,7 @@ const web3 = new Web3();
 
 module.exports = function (deployer) {
     deployer.deploy(QiibeeCrowdsale
-        , 1530868919                                        // _openingTime - 6 July 
+        , 1530878570                                        // _openingTime - 6 July 
         , 1538828508                                        // _closingTime - 28 June + 100 days
         , 21                                                // _rate
         , web3.utils.toWei('100', 'ether')                  // _cap

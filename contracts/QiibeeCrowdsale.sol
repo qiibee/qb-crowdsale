@@ -146,6 +146,14 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
       _;
     }
 
+    /**
+     * @dev need to have this despite inheritance because `buyTokens` in `Crowdsale.sol`
+     * takes an argument. So the (inherited) fallback function in `Crowdsale.sol` calls it with the argument.
+     */
+    function () external payable {
+        buyTokens();
+    }
+
     /*
      * @dev Whenever buyTokens function is called there are 3 use cases that can take place:
      * 1). if contributor has already passed KYC (this means that accepted[msg.sender] is true),
