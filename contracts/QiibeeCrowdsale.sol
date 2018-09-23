@@ -236,7 +236,6 @@ contract QiibeeCrowdsale is TimedCrowdsale, CappedCrowdsale, FinalizableCrowdsal
 
         isFinalized = true;
 
-        QiibeeToken(token).finishMinting(); //TODO: decide if we want to finish minting here
         QiibeeToken(token).unpause();
         QiibeeToken(token).transferOwnership(wallet);
     }
